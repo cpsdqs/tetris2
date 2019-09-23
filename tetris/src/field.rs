@@ -90,10 +90,10 @@ impl PieceType {
     /// Returns the clockwise rotation matrix.
     pub fn cw_rotation(&self) -> Matrix3<isize> {
         match self {
-            PieceType::I => ((0, 1, 1).into(), (-1, 0, 0).into(), (0, 0, 1).into()).into(),
+            PieceType::I => ((0, -1, 0).into(), (1, 0, 0).into(), (1, 0, 1).into()).into(),
             PieceType::O => Matrix3::identity(),
             PieceType::J | PieceType::L | PieceType::S | PieceType::T | PieceType::Z => {
-                ((0, 1, 0).into(), (-1, 0, 0).into(), (0, 0, 1).into()).into()
+                ((0, -1, 0).into(), (1, 0, 0).into(), (0, 0, 1).into()).into()
             }
         }
     }
@@ -700,4 +700,85 @@ impl ActiveField {
     pub fn field(&self) -> &Field {
         &self.field
     }
+}
+
+#[test]
+fn rotation_to_from_usize() {
+    assert_eq!(Rotation::from(0), Rotation::None);
+    assert_eq!(Rotation::from(4), Rotation::from(0));
+    let i: usize = Rotation::CW.into();
+    assert_eq!(i, 1);
+}
+
+#[test]
+fn piece_type_rotations() {
+    const J_OFF_X: isize = 1;
+    const J_OFF_Y: isize = 1;
+    const J_NONE: &[&[usize]] = &[&[1, 0, 0], &[1, 1, 1], &[0, 0, 0]];
+    const J_CW: &[&[usize]] = &[&[0, 1, 1], &[0, 1, 0], &[0, 1, 0]];
+    const J_FLIP: &[&[usize]] = &[&[0, 0, 0], &[1, 1, 1], &[0, 0, 1]];
+    const J_CCW: &[&[usize]] = &[&[0, 1, 0], &[0, 1, 0], &[1, 1, 0]];
+
+    const I_OFF_X: isize = 1;
+    const I_OFF_Y: isize = 1;
+    const I_NONE: &[&[usize]] = &[&[0, 0, 0, 0], &[1, 1, 1, 1], &[0, 0, 0, 0], &[0, 0, 0, 0]];
+    const I_CW: &[&[usize]] = &[&[0, 0, 1, 0], &[0, 0, 1, 0], &[0, 0, 1, 0], &[0, 0, 1, 0]];
+    const I_FLIP: &[&[usize]] = &[&[0, 0, 0, 0], &[0, 0, 0, 0], &[1, 1, 1, 1], &[0, 0, 0, 0]];
+    const I_CCW: &[&[usize]] = &[&[0, 1, 0, 0], &[0, 1, 0, 0], &[0, 1, 0, 0], &[0, 1, 0, 0]];
+
+    fn assert_rotated_matches(
+        ty: PieceType,
+        r: Rotation,
+        table: &[&[usize]],
+        off_x: isize,
+        off_y: isize,
+    ) {
+        let mut picture = [[0; 4]; 4];
+        for tile in ty.iter_tiles_rotated(r) {
+            let tile_y: usize = (off_y - tile.y).try_into().unwrap();
+            let tile_x: usize = (tile.x + off_x).try_into().unwrap();
+
+            picture[tile_y][tile_x] = 1;
+        }
+
+        println!("Testing {:?} rotation {:?}", ty, r);
+        println!("- 012345");
+        for y in 0..picture.len() {
+            fn m(i: usize) -> char {
+                match i {
+                    0 => ' ',
+                    _ => 'X',
+                }
+            }
+            println!(
+                "{} {}{}{}{}",
+                y,
+                m(picture[y][0]),
+                m(picture[y][1]),
+                m(picture[y][2]),
+                m(picture[y][3]),
+            );
+        }
+
+        for (i, tile) in ty.iter_tiles_rotated(r).enumerate() {
+            let tile_y: usize = (off_y - tile.y).try_into().unwrap();
+            let tile_x: usize = (tile.x + off_x).try_into().unwrap();
+
+            assert_eq!(
+                table[tile_y][tile_x], 1,
+                "tile {} at {:?} is invalid",
+                i, tile
+            );
+        }
+    }
+
+    assert_rotated_matches(PieceType::J, Rotation::None, J_NONE, J_OFF_X, J_OFF_Y);
+    assert_rotated_matches(PieceType::J, Rotation::CW, J_CW, J_OFF_X, J_OFF_Y);
+    assert_rotated_matches(PieceType::J, Rotation::Flip, J_FLIP, J_OFF_X, J_OFF_Y);
+    assert_rotated_matches(PieceType::J, Rotation::CCW, J_CCW, J_OFF_X, J_OFF_Y);
+
+    assert_rotated_matches(PieceType::I, Rotation::None, I_NONE, I_OFF_X, I_OFF_Y);
+    assert_rotated_matches(PieceType::I, Rotation::CW, I_CW, I_OFF_X, I_OFF_Y);
+    assert_rotated_matches(PieceType::I, Rotation::Flip, I_FLIP, I_OFF_X, I_OFF_Y);
+    assert_rotated_matches(PieceType::I, Rotation::CCW, I_CCW, I_OFF_X, I_OFF_Y);
 }

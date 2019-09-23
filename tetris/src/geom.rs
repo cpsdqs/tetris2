@@ -150,9 +150,9 @@ where
     fn mul(self, rhs: Self) -> Self {
         let lhs = self.transpose();
         Matrix3 {
-            x: (lhs.x * rhs.x, lhs.x * rhs.y, lhs.x * rhs.z).into(),
-            y: (lhs.y * rhs.x, lhs.y * rhs.y, lhs.y * rhs.z).into(),
-            z: (lhs.z * rhs.x, lhs.z * rhs.y, lhs.z * rhs.z).into(),
+            x: (lhs.x * rhs.x, lhs.y * rhs.x, lhs.z * rhs.x).into(),
+            y: (lhs.x * rhs.y, lhs.y * rhs.y, lhs.z * rhs.y).into(),
+            z: (lhs.x * rhs.z, lhs.y * rhs.z, lhs.z * rhs.z).into(),
         }
     }
 }
@@ -179,4 +179,28 @@ where
             z: lhs.z * rhs,
         }
     }
+}
+
+#[test]
+fn matrix_multiplication() {
+    let a: Matrix3<isize> = ((-1, 2, 3).into(), (4, 5, 6).into(), (7, -8, 9).into()).into();
+    let a_t: Matrix3<isize> = ((-1, 4, 7).into(), (2, 5, -8).into(), (3, 6, 9).into()).into();
+    let b: Matrix3<isize> = ((2, -1, 4).into(), (-7, 4, 8).into(), (3, 6, -4).into()).into();
+    let ab: Matrix3<isize> = (
+        (22, -33, 36).into(),
+        (79, -58, 75).into(),
+        (-7, 68, 9).into(),
+    )
+        .into();
+
+    let c: Vector3<isize> = (1, -4, 9).into();
+    let d: Vector3<isize> = (-2, 0, 3).into();
+    let cd: isize = 25;
+
+    let ac: Vector3<isize> = (46, -90, 60).into();
+
+    assert_eq!(a.transpose(), a_t, "transposed matrix is wrong");
+    assert_eq!(c * d, cd, "inner product is wrong");
+    assert_eq!(a * b, ab, "matrix mult is wrong");
+    assert_eq!(a * c, ac, "matrix vector mult is wrong");
 }
