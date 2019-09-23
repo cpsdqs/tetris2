@@ -1,0 +1,16 @@
+[package]
+name = "tetris-server"
+version = "0.1.0"
+authors = ["cpsdqs <cpsdqs@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+tetris-core = { path = "../tetris-core" }
+tokio = "0.1"
+websocket = "0.23"
+hyper = "0.10"
+log = "0.4"
+fern = "0.5"
+clap = "2.33"
+time = "0.1"
+futures = "0.1"
