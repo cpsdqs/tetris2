@@ -7,6 +7,7 @@ use hyper::uri::RequestUri;
 use std::net::IpAddr;
 use std::net::SocketAddr;
 use std::process::exit;
+use std::sync::Arc;
 use tokio::prelude::*;
 use tokio::reactor::Handle;
 use tokio::runtime::Runtime;
@@ -14,7 +15,10 @@ use websocket::header::Headers;
 use websocket::r#async::Server;
 use websocket::server::InvalidConnection;
 
+mod client;
+mod game;
 mod http;
+mod protocol;
 
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: &str = "7375";
@@ -111,6 +115,8 @@ fn main() {
         .apply()
         .expect("Failed to initialize logger");
 
+    let (game_manager, gm_scheduler) = game::GameManager::new();
+
     let mut runtime = Runtime::new().expect("failed to create tokio runtime");
 
     runtime
@@ -124,6 +130,8 @@ fn main() {
             };
 
             info!("Listening on {}:{}", host, port);
+
+            tokio::spawn(gm_scheduler);
 
             server
                 .incoming()
@@ -183,7 +191,9 @@ fn main() {
                     };
 
                     if accept {
-                        info!("Acceping websocket connection from {}", addr);
+                        let gm_ref = Arc::clone(&game_manager);
+
+                        info!("Accepting websocket connection from {}", addr);
                         tokio::spawn(
                             upgrade
                                 .accept()
@@ -193,9 +203,9 @@ fn main() {
                                         addr, err
                                     );
                                 })
-                                // TODO: websocket handling
-                                // .and_then(move |(client, _)| client::accept(client, addr)),
-                                .map(move |(_, _)| ()),
+                                .and_then(move |(client, _)| {
+                                    client::accept(Arc::clone(&gm_ref), client, addr)
+                                }),
                         );
                     } else {
                         tokio::spawn(upgrade.reject().map(|_| {}).map_err(|_| {}));

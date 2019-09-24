@@ -2,10 +2,15 @@
 
 use crate::geom::{Matrix3, Point2, Vector3};
 use core::ops::Add;
+use core::str::FromStr;
 use rand::seq::SliceRandom;
+use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::collections::VecDeque;
 use std::convert::TryInto;
-use std::time::{Duration, Instant};
+
+pub type Timestamp = f64;
+pub type Duration = f64;
 
 /// A shape.
 pub trait Shape {
@@ -14,12 +19,13 @@ pub trait Shape {
 }
 
 /// Possible rotations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
 pub enum Rotation {
-    None,
-    CW,
-    Flip,
-    CCW,
+    None = 0,
+    CW = 1,
+    Flip = 2,
+    CCW = 3,
 }
 
 impl Rotation {
@@ -62,7 +68,7 @@ impl Add<isize> for Rotation {
 }
 
 /// Types of tetris pieces.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PieceType {
     I,
     J,
@@ -174,6 +180,18 @@ impl PieceType {
             Err(())
         }
     }
+
+    pub fn stringify(&self, s: &mut String) {
+        match self {
+            PieceType::I => s.push('I'),
+            PieceType::J => s.push('J'),
+            PieceType::L => s.push('L'),
+            PieceType::O => s.push('O'),
+            PieceType::S => s.push('S'),
+            PieceType::T => s.push('T'),
+            PieceType::Z => s.push('Z'),
+        }
+    }
 }
 
 impl Shape for PieceType {
@@ -236,6 +254,22 @@ impl Shape for PieceType {
     }
 }
 
+impl FromStr for PieceType {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, ()> {
+        match s {
+            "I" => Ok(Self::I),
+            "J" => Ok(Self::J),
+            "L" => Ok(Self::L),
+            "O" => Ok(Self::O),
+            "S" => Ok(Self::S),
+            "T" => Ok(Self::T),
+            "Z" => Ok(Self::Z),
+            _ => Err(()),
+        }
+    }
+}
+
 /// Types of tiles in a playfield.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Tile {
@@ -244,7 +278,7 @@ pub enum Tile {
     /// A regular non-empty tile.
     Piece(PieceType),
     /// A tile that is part of a cleared row and is marked for removal. Contains time of creation.
-    Clear(Instant),
+    Clear(Timestamp),
 }
 
 impl Tile {
@@ -255,26 +289,59 @@ impl Tile {
             Tile::Empty | Tile::Clear(_) => false,
         }
     }
+
+    pub fn stringify(&self, s: &mut String) {
+        match self {
+            Tile::Empty => s.push(' '),
+            Tile::Piece(ty) => ty.stringify(s),
+            Tile::Clear(inst) => s.push_str(&format!("X{}$", inst)),
+        }
+    }
+
+    pub fn parse_from_str(s: &str) -> Result<(Self, usize), ()> {
+        let mut chars = s.chars();
+        let first = chars.next().ok_or(())?;
+        if let Ok(piece) = first.to_string().parse() {
+            Ok((Tile::Piece(piece), 1))
+        } else if first == ' ' {
+            Ok((Tile::Empty, 1))
+        } else if first == 'X' {
+            let mut num = String::new();
+            let mut len = 1;
+            for c in chars {
+                len += 1;
+                if c == '$' {
+                    break;
+                } else {
+                    num.push(c);
+                }
+            }
+            let inst = num.parse().map_err(|_| ())?;
+            Ok((Tile::Clear(inst), len))
+        } else {
+            Err(())
+        }
+    }
 }
 
 /// An active piece.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct ActivePiece {
     pos: Point2<isize>,
     piece_type: PieceType,
     rotation: Rotation,
     was_held_piece: bool,
-    last_move_time: Instant,
+    last_move_time: Timestamp,
 }
 
 impl ActivePiece {
-    pub fn new(piece_type: PieceType) -> ActivePiece {
+    pub fn new(piece_type: PieceType, time: Timestamp) -> ActivePiece {
         ActivePiece {
             pos: Point2::new(0, 0),
             piece_type,
             rotation: Rotation::None,
             was_held_piece: false,
-            last_move_time: Instant::now(),
+            last_move_time: time,
         }
     }
 
@@ -297,11 +364,11 @@ impl ActivePiece {
     ///
     /// Will only check for collisions at the end position, assuming that the piece will only ever
     /// moved one tile at a time.
-    pub fn try_move(&mut self, field: &Field, dx: isize, dy: isize) {
+    pub fn try_move(&mut self, field: &Field, dx: isize, dy: isize, time: Timestamp) {
         if !field.collide(self, (self.pos.x + dx, self.pos.y + dy).into()) {
             self.pos.x += dx;
             self.pos.y += dy;
-            self.last_move_time = Instant::now();
+            self.last_move_time = time;
         }
     }
 
@@ -311,7 +378,7 @@ impl ActivePiece {
     }
 
     /// Attempts to rotate this piece, employing wall popping.
-    pub fn try_rotate(&mut self, field: &Field, rotation: isize) {
+    pub fn try_rotate(&mut self, field: &Field, rotation: isize, time: Timestamp) {
         struct Rotated(PieceType, Rotation);
         impl Shape for Rotated {
             fn iter_tiles<'a>(&self) -> Box<dyn Iterator<Item = Point2<isize>> + 'a> {
@@ -328,7 +395,7 @@ impl ActivePiece {
                     // found valid position
                     self.rotation = new_rotation;
                     self.pos = pos;
-                    self.last_move_time = Instant::now();
+                    self.last_move_time = time;
                     break;
                 }
             }
@@ -447,9 +514,8 @@ impl Field {
     }
 
     /// Marks appropriate lines as cleared and returns the number of cleared lines.
-    pub fn clear_lines(&mut self) -> usize {
+    pub fn clear_lines(&mut self, time: Timestamp) -> usize {
         let mut cleared = 0;
-        let now = Instant::now();
 
         for y in 0..self.height {
             let is_clear = {
@@ -469,7 +535,7 @@ impl Field {
             if is_clear {
                 // mark cleared
                 for x in 0..self.width {
-                    self.set_tile(x, y, Tile::Clear(now));
+                    self.set_tile(x, y, Tile::Clear(time));
                     self.tiles.push(Tile::Empty);
                 }
                 cleared += 1;
@@ -481,14 +547,12 @@ impl Field {
     }
 
     /// Removes expired clear lines.
-    pub fn clean_lines(&mut self, timeout: Duration) {
-        let now = Instant::now();
-
+    pub fn clean_lines(&mut self, timeout: Duration, time: Timestamp) {
         let mut y = 0;
         while y < self.tiles.len() / self.width {
             let clear_line = match self.get_tile(0, y) {
                 Some(Tile::Clear(instant)) => {
-                    if now.duration_since(instant) > timeout {
+                    if time - instant > timeout {
                         true
                     } else {
                         false
@@ -534,21 +598,16 @@ pub struct ActiveField {
     held_piece: Option<PieceType>,
     /// The current active piece.
     active_piece: Option<ActivePiece>,
-    /// The score.
-    score: usize,
 }
 
 impl ActiveField {
     pub fn new() -> ActiveField {
-        let mut field = ActiveField {
+        ActiveField {
             field: Field::new(),
             queue: VecDeque::new(),
             held_piece: None,
             active_piece: None,
-            score: 0,
-        };
-        field.spawn_active(None);
-        field
+        }
     }
 
     /// Updates the queue and fills it up with items if it’s too empty.
@@ -566,11 +625,11 @@ impl ActiveField {
     /// Spawns an active piece.
     ///
     /// If the type override is not given, this will pop the queue.
-    fn spawn_active(&mut self, type_override: Option<PieceType>) {
+    pub fn spawn_active(&mut self, type_override: Option<PieceType>, time: Timestamp) {
         self.update_queue();
         let piece_type =
             type_override.unwrap_or_else(|| self.queue.pop_front().expect("empty queue"));
-        let mut active_piece = ActivePiece::new(piece_type);
+        let mut active_piece = ActivePiece::new(piece_type, time);
 
         let mut active_piece_x_bounds = (0, 0);
         let mut active_piece_baseline_offset = 0;
@@ -583,50 +642,50 @@ impl ActiveField {
 
         active_piece.pos.x = self.field.width as isize / 2 - active_piece_width / 2;
         active_piece.pos.y = self.field.top_height as isize - active_piece_baseline_offset;
-        active_piece.try_move(&self.field, 0, -1);
+        active_piece.try_move(&self.field, 0, -1, time);
         self.active_piece = Some(active_piece);
     }
 
     /// Attempts to rotate the active piece counter-clockwise.
-    pub fn rotate_active_ccw(&mut self) {
+    pub fn rotate_active_ccw(&mut self, time: Timestamp) {
         if let Some(active_piece) = &mut self.active_piece {
-            active_piece.try_rotate(&self.field, -1);
+            active_piece.try_rotate(&self.field, -1, time);
         }
     }
 
     /// Attempts to rotate the active piece clockwise.
-    pub fn rotate_active_cw(&mut self) {
+    pub fn rotate_active_cw(&mut self, time: Timestamp) {
         if let Some(active_piece) = &mut self.active_piece {
-            active_piece.try_rotate(&self.field, 1);
+            active_piece.try_rotate(&self.field, 1, time);
         }
     }
 
     /// Attempts to move the active piece left.
-    pub fn move_active_left(&mut self) {
+    pub fn move_active_left(&mut self, time: Timestamp) {
         if let Some(active_piece) = &mut self.active_piece {
-            active_piece.try_move(&self.field, -1, 0);
+            active_piece.try_move(&self.field, -1, 0, time);
         }
     }
 
     /// Attempts to move the active piece right.
-    pub fn move_active_right(&mut self) {
+    pub fn move_active_right(&mut self, time: Timestamp) {
         if let Some(active_piece) = &mut self.active_piece {
-            active_piece.try_move(&self.field, 1, 0);
+            active_piece.try_move(&self.field, 1, 0, time);
         }
     }
 
     /// Attempts to move the active tile down.
-    pub fn move_active_down(&mut self) {
+    pub fn move_active_down(&mut self, time: Timestamp) {
         if let Some(active_piece) = &mut self.active_piece {
-            active_piece.try_move(&self.field, 0, -1);
+            active_piece.try_move(&self.field, 0, -1, time);
         }
     }
 
     /// Moves the active tile all the way down and locks it in place.
-    pub fn hard_drop_active(&mut self) {
+    pub fn hard_drop_active(&mut self, time: Timestamp) {
         // use field height as an upper limit in case of invalid state
         for _ in 0..self.field.height {
-            self.move_active_down();
+            self.move_active_down(time);
             if self
                 .active_piece
                 .as_ref()
@@ -637,7 +696,7 @@ impl ActiveField {
         }
 
         // instantly lock in place
-        if self.should_lock_active(Duration::new(0, 0)) {
+        if self.should_lock_active(0., time) {
             self.lock_active();
         }
     }
@@ -651,17 +710,17 @@ impl ActiveField {
     }
 
     /// Returns true if the active piece should be locked in place right now.
-    pub fn should_lock_active(&mut self, lock_delay: Duration) -> bool {
+    pub fn should_lock_active(&mut self, lock_delay: Duration, time: Timestamp) -> bool {
         if let Some(active_piece) = &self.active_piece {
             active_piece.is_on_ground(&self.field)
-                && active_piece.last_move_time.elapsed() >= lock_delay
+                && time - active_piece.last_move_time >= lock_delay
         } else {
             false
         }
     }
 
     /// Swaps the held piece and the active piece if the active piece was not a held piece.
-    pub fn swap_held_piece(&mut self) {
+    pub fn swap_held_piece(&mut self, time: Timestamp) {
         if self
             .active_piece
             .as_ref()
@@ -671,7 +730,7 @@ impl ActiveField {
         }
         let new_held_piece = self.active_piece.as_ref().map(|p| p.piece_type);
         if let Some(held_piece) = self.held_piece {
-            self.spawn_active(Some(held_piece));
+            self.spawn_active(Some(held_piece), time);
             self.active_piece.as_mut().unwrap().was_held_piece = true;
         }
         self.held_piece = new_held_piece;
@@ -680,9 +739,9 @@ impl ActiveField {
     /// Checks for clear lines and removes expired clear lines.
     ///
     /// Returns the number of cleared lines.
-    pub fn clear_tiles(&mut self, clear_timeout: Duration) -> usize {
-        let cleared = self.field.clear_lines();
-        self.field.clean_lines(clear_timeout);
+    pub fn clear_lines(&mut self, clear_timeout: Duration, time: Timestamp) -> usize {
+        let cleared = self.field.clear_lines(time);
+        self.field.clean_lines(clear_timeout, time);
         cleared
     }
 
@@ -694,6 +753,11 @@ impl ActiveField {
     /// Returns the active piece.
     pub fn active_piece(&self) -> Option<&ActivePiece> {
         self.active_piece.as_ref()
+    }
+
+    /// Returns the queue.
+    pub fn queue(&self) -> &VecDeque<PieceType> {
+        &self.queue
     }
 
     /// Returns the field.

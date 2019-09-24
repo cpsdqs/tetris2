@@ -1,6 +1,7 @@
 //! Geometric primitives.
 
 use core::ops::{Add, Mul, MulAssign};
+use serde::{Deserialize, Serialize};
 
 macro_rules! impl_ty {
     ($t:tt, ($($dim:ident: $dty:ty, $dti:tt),+)) => {
@@ -33,7 +34,7 @@ macro_rules! impl_ty {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Point2<T> {
     pub x: T,
     pub y: T,
