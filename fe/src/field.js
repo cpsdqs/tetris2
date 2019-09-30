@@ -75,11 +75,12 @@ export default class Field {
             if (firstTile.startsWith('X')) {
                 const tileTime = +firstTile.substr(1);
                 clearTime = Math.min(1, 2 * (time - tileTime));
-                if (clearTime < 1 && !this.clearBounces[tileTime]) {
-                    this.clearBounces[tileTime] = 1;
+                const clearID = `${tileTime}${y}`;
+                if (clearTime < 1 && !this.clearBounces[clearID]) {
+                    this.clearBounces[clearID] = 1;
                 }
-                if (clearTime >= 1 && this.clearBounces[tileTime]) {
-                    delete this.clearBounces[tileTime];
+                if (clearTime >= 1 && this.clearBounces[clearID]) {
+                    delete this.clearBounces[clearID];
                     this.dy.velocity -= 100;
                 }
             }
