@@ -83,6 +83,104 @@ void main() {
 }
 `);
 
+export const bloomThreshold = s(glsl`
+precision highp float;
+
+attribute vec2 position;
+varying vec2 uv;
+
+void main() {
+    gl_Position = vec4(vec2(-1) + 2. * position, 0, 1);
+    uv = position;
+}
+`, glsl`
+precision highp float;
+
+uniform sampler2D texture;
+varying vec2 uv;
+
+vec3 luma_factors = vec3(0.21, 0.72, 0.07);
+
+float luma_transfer(float lum) {
+    float lum3 = lum * lum * lum;
+    return lum3 * lum3 * lum3;
+}
+
+void main() {
+    vec3 color = texture2D(texture, uv).rgb;
+    float lum = dot(color, luma_factors);
+    gl_FragColor = vec4(mix(vec3(0), color.rgb, luma_transfer(lum)), 1);
+}
+`);
+
+export const bloomComposite = s(glsl`
+precision highp float;
+
+attribute vec2 position;
+varying vec2 uv;
+
+void main() {
+    gl_Position = vec4(vec2(-1) + 2. * position, 0, 1);
+    uv = position;
+}
+`, glsl`
+precision highp float;
+
+uniform sampler2D texture;
+uniform sampler2D bloomTexture;
+varying vec2 uv;
+
+vec3 luma_factors = vec3(0.21, 0.72, 0.07);
+vec3 background = vec3(0);
+
+void main() {
+    vec4 color = texture2D(texture, uv);
+    vec3 bloomColor = texture2D(bloomTexture, uv).rgb;
+    color = vec4(mix(background, color.rgb, color.a), 1); // alpha composite with background
+    color.r = 1. - (1. - color.r) * (1. - bloomColor.r);
+    color.g = 1. - (1. - color.g) * (1. - bloomColor.g);
+    color.b = 1. - (1. - color.b) * (1. - bloomColor.b);
+    gl_FragColor = color;
+}
+`, s => {
+    s.bind();
+    s.uniforms.bloomTexture = 1;
+});
+
+export const gaussianPass = s(glsl`
+precision highp float;
+
+attribute vec2 position;
+varying vec2 uv;
+
+void main() {
+    gl_Position = vec4(vec2(-1) + 2. * position, 0, 1);
+    uv = position;
+}
+`, glsl`
+precision highp float;
+
+uniform sampler2D texture;
+uniform float kernel[7];
+uniform vec2 direction;
+varying vec2 uv;
+
+void main() {
+    vec4 color = vec4(0);
+
+    for (int i = -3; i <= 3; i++) {
+        color += texture2D(texture, uv + float(i) * direction) * kernel[i + 3];
+    }
+
+    gl_FragColor = color;
+}
+`, s => {
+    s.bind();
+    // s.uniforms.kernel = [0.06136, 0.24477, 0.38774, 0.24477, 0.06136];
+    s.uniforms.kernel = [0.00598, 0.060626, 0.241843, 0.383103, 0.241843, 0.060626, 0.00598];
+});
+
+
 export const gameFBO = s(glsl`
 precision highp float;
 
@@ -97,26 +195,9 @@ void main() {
 precision highp float;
 
 uniform sampler2D texture;
-uniform vec2 pixel_scale;
 varying vec2 uv;
 
-float scl(float i) {
-    return exp(-(i * i)) / 2.;
-}
-
 void main() {
-    vec4 bloom = vec4(0);
-
-    for (int i = -2; i <= 2; i++) {
-        for (int j = -2; j <= 2; j++) {
-            vec4 tex = texture2D(texture, uv + vec2(i, j) * pixel_scale * 2.);
-            tex -= 0.8;
-            tex /= 0.2;
-            tex = max(vec4(0), tex);
-            bloom += tex * tex * tex * scl(float(i)) * scl(float(j));
-        }
-    }
-
-    gl_FragColor = texture2D(texture, uv) + bloom;
+    gl_FragColor = texture2D(texture, uv);
 }
 `);

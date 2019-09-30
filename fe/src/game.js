@@ -2,7 +2,7 @@ import { gl, canvas } from './canvas';
 import conn from './conn';
 import createFBO from 'gl-fbo';
 import quad from './quad';
-import { gameFBO as gameFBOShader } from './shaders';
+import { gameFBO as gameFBOShader, bloomThreshold, bloomComposite, gaussianPass } from './shaders';
 import Field from './field';
 import { createActiveField } from '../../tetris-wasm/pkg';
 
@@ -190,8 +190,7 @@ export default class Game {
         fboRender.next();
 
         gameFBOShader.bind();
-        gameFBOShader.uniforms.pixel_scale = [1 / this.fbo.width, 1 / this.fbo.height];
-        this.fbo.fbo.color[0].bind(0);
+        this.fbo.out.color[0].bind(0);
         quad.bind();
         quad.draw();
         quad.unbind();
@@ -207,23 +206,33 @@ export default class Game {
     }
 }
 
-const PIXEL_SIZE = 4;
+const GAME_HEIGHT = 1080 / 5;
 
 class GameFBO {
+    constructor () {
+        this.height = GAME_HEIGHT;
+    }
+
     updateFBO () {
         if (this.fboWidth !== this.width || this.fboHeight !== this.height) {
-            if (this.fbo) this.fbo.dispose();
+            if (this.fbo) {
+                this.fbo.dispose();
+                this.fbo2.dispose();
+                this.fbo3.dispose();
+            }
             this.fbo = createFBO(gl, [this.width, this.height]);
+            this.fbo2 = createFBO(gl, [this.width, this.height]);
+            this.fbo3 = createFBO(gl, [this.width, this.height]);
             this.fboWidth = this.width;
             this.fboHeight = this.height;
         }
     }
     getPixelSize () {
-        return PIXEL_SIZE;
+        return canvas.scaledHeight / this.height;
     }
     *render () {
-        this.width = Math.floor(canvas.scaledWidth / PIXEL_SIZE);
-        this.height = Math.floor(canvas.scaledHeight / PIXEL_SIZE);
+        const pixelSize = canvas.scaledHeight / this.height;
+        this.width = Math.floor(canvas.scaledWidth / pixelSize);
         this.updateFBO();
 
         const origVP = gl.getParameter(gl.VIEWPORT);
@@ -234,8 +243,42 @@ class GameFBO {
 
         yield;
 
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        quad.bind();
 
+        // bloom threshold filter
+        this.fbo2.bind();
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        this.fbo.color[0].bind(0);
+        bloomThreshold.bind();
+        quad.draw();
+
+        // gaussian blur
+        this.fbo3.bind();
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        this.fbo2.color[0].bind(0);
+        gaussianPass.bind();
+        gaussianPass.uniforms.direction = [1 / this.width, 0];
+        quad.draw();
+
+        this.fbo2.bind();
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        this.fbo3.color[0].bind(0);
+        gaussianPass.uniforms.direction = [0, 1 / this.height];
+        quad.draw();
+
+        // composite
+        this.fbo3.bind();
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        this.fbo.color[0].bind(0);
+        this.fbo2.color[0].bind(1);
+        bloomComposite.bind();
+        quad.draw();
+
+        quad.unbind();
+
+        this.out = this.fbo3;
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(...origVP);
     }
 
