@@ -479,7 +479,7 @@ impl Field {
         if x >= self.width || y * self.width >= self.tiles.len() {
             return false;
         }
-        self.tiles.insert(y * self.width + x, tile);
+        self.tiles[y * self.width + x] = tile;
         true
     }
 
@@ -496,6 +496,8 @@ impl Field {
                 {
                     return true;
                 }
+            } else {
+                return true; // out of bounds
             }
         }
         return false;
@@ -562,12 +564,19 @@ impl Field {
             };
 
             if clear_line {
-                self.tiles.remove(y * self.width);
+                for _ in 0..self.width {
+                    self.tiles.remove(y * self.width);
+                }
                 self.clear_rows -= 1;
             } else {
                 y += 1;
             }
         }
+    }
+
+    /// Returns the number of clear rows.
+    pub fn clear_rows(&self) -> usize {
+        self.clear_rows
     }
 
     /// Returns whether or not this field has been topped out.
@@ -641,7 +650,7 @@ impl ActiveField {
         let active_piece_width = active_piece_x_bounds.1 - active_piece_x_bounds.0;
 
         active_piece.pos.x = self.field.width as isize / 2 - active_piece_width / 2;
-        active_piece.pos.y = self.field.top_height as isize - active_piece_baseline_offset;
+        active_piece.pos.y = self.field.top_height as isize + self.field.clear_rows as isize - active_piece_baseline_offset;
         active_piece.try_move(&self.field, 0, -1, time);
         self.active_piece = Some(active_piece);
     }
@@ -731,8 +740,10 @@ impl ActiveField {
         let new_held_piece = self.active_piece.as_ref().map(|p| p.piece_type);
         if let Some(held_piece) = self.held_piece {
             self.spawn_active(Some(held_piece), time);
-            self.active_piece.as_mut().unwrap().was_held_piece = true;
+        } else {
+            self.spawn_active(None, time);
         }
+        self.active_piece.as_mut().unwrap().was_held_piece = true;
         self.held_piece = new_held_piece;
     }
 
@@ -743,6 +754,11 @@ impl ActiveField {
         let cleared = self.field.clear_lines(time);
         self.field.clean_lines(clear_timeout, time);
         cleared
+    }
+
+    /// Removes expired clear lines.
+    pub fn clean_lines(&mut self, clear_timeout: Duration, time: Timestamp) {
+        self.field.clean_lines(clear_timeout, time);
     }
 
     /// Returns true if the field has been topped out.
@@ -758,6 +774,11 @@ impl ActiveField {
     /// Returns the queue.
     pub fn queue(&self) -> &VecDeque<PieceType> {
         &self.queue
+    }
+
+    /// Returns the currently held piece.
+    pub fn held_piece(&self) -> Option<PieceType> {
+        self.held_piece
     }
 
     /// Returns the field.

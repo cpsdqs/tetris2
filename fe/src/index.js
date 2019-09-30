@@ -1,3 +1,3 @@
-import App from './app';
-
-window.app = new App();
+import('./app').then(app => {
+    window.app = new app.default();
+});

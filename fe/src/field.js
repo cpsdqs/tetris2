@@ -57,7 +57,7 @@ export default class Field {
         }
     }
 
-    render (fbo) {
+    render (fbo, time) {
         const px = this.pos[0];
         const py = fbo.height - this.pos[1] - this.dims[1] + this.dy.value
             - Math.ceil(32 / fbo.getPixelSize());
@@ -67,12 +67,14 @@ export default class Field {
         quad.bind();
 
         let posY = 0;
+        const yOffsets = [];
         for (let y = 0; y < this.field.h + 4; y++) {
+            yOffsets[y] = posY;
             const firstTile = this.field.t[y * this.field.w];
             let clearTime = 0;
             if (firstTile.startsWith('X')) {
                 const tileTime = +firstTile.substr(1);
-                clearTime = Math.min(1, (Date.now() - tileTime) / 500);
+                clearTime = Math.min(1, 2 * (time - tileTime));
                 if (clearTime < 1 && !this.clearBounces[tileTime]) {
                     this.clearBounces[tileTime] = 1;
                 }
@@ -95,6 +97,16 @@ export default class Field {
             posY += tileHeight;
         }
 
+        // draw active tile
+        this.drawTiles(
+            px + this.field.a.x * TILE_SIZE,
+            py,
+            this.field.a.y,
+            yOffsets,
+            this.field.a.p,
+            this.field.a.t,
+        );
+
         // draw next piece
         this.drawPiece(px + (this.field.w + 1) * TILE_SIZE, py + (this.field.h - 2) * TILE_SIZE, this.field.n);
 
@@ -109,6 +121,18 @@ export default class Field {
         quad.draw();
 
         quad.unbind();
+    }
+
+    drawTiles (x, py, y, yOff, p, t) {
+        tileShader.uniforms.color = TILE_COLORS[p];
+        tileShader.uniforms.expand = true;
+        for (let i = 0; i < t.length; i += 2) {
+            const [dx, dy] = [t[i], t[i + 1]];
+            const ydy = y + dy;
+            const xy = yOff[ydy] ? yOff[ydy] : (ydy * TILE_SIZE);
+            tileShader.uniforms.pos = [x + dx * TILE_SIZE, py + xy];
+            quad.draw();
+        }
     }
 
     drawPiece (x, y, p) {

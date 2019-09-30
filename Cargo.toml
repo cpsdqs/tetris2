@@ -2,4 +2,5 @@
 members = [
     "tetris-core",
     "tetris-server",
+    "tetris-wasm",
 ]

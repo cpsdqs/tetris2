@@ -15,6 +15,7 @@
     "webpack-cli": "^3.3.9"
   },
   "dependencies": {
+    "@wasm-tool/wasm-pack-plugin": "^1.0.1",
     "gl-buffer": "^2.1.2",
     "gl-fbo": "^2.0.5",
     "gl-matrix": "^3.1.0",

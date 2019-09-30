@@ -6,7 +6,9 @@ import Game from './game';
 export default class App {
     constructor () {
         conn.on('message', msg => this.onMessage(msg));
-        this.ui = new UI();
+        // this.ui = new UI();
+
+        this.game = new Game();
 
         window.addEventListener('keydown', e => this.onKeyDown(e));
         window.addEventListener('keyup', e => this.onKeyUp(e));
@@ -54,8 +56,8 @@ export default class App {
             this.game.render();
         }
 
-        this.ui.update(dt);
-        this.ui.render();
+        // this.ui.update(dt);
+        // this.ui.render();
 
         requestAnimationFrame(() => this.render());
     }

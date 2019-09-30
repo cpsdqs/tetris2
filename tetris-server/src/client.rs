@@ -43,7 +43,7 @@ pub fn accept(
                     *did_accept2.lock() = true;
                     match Client::new(gm, name, token, socket, addr) {
                         Ok(client) => Either::A(client),
-                        Err(_) => Either::B(future::ok(())),
+                        Err(client) => Either::A(client),
                     }
                 }
                 _ => Either::B(future::ok(())),
@@ -148,7 +148,7 @@ impl Client {
         token: String,
         socket: Framed<TcpStream, MessageCodec<OwnedMessage>>,
         addr: SocketAddr,
-    ) -> Result<Client, ()> {
+    ) -> Result<Client, Client> {
         let (msg_queue_in, msg_queue) = mpsc::unbounded();
 
         let mut client = Client {
@@ -163,13 +163,19 @@ impl Client {
             msg_queue_in,
         };
 
+        let mut is_err = false;
         if let Err(_) = client
             .gm
             .lock()
             .add_client(name, token, client.create_handle())
         {
-            return Err(());
+            client.create_handle().send(ServerMsg::NameTaken);
+            is_err = true;
         }
+        if is_err {
+            return Err(client);
+        }
+
         client.registered = true;
         Ok(client)
     }

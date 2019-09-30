@@ -130,6 +130,9 @@ pub struct FieldState {
 
 #[derive(Debug, Clone, Serialize)]
 pub enum ServerMsg {
+    #[serde(rename = "name-taken")]
+    NameTaken,
+
     #[serde(rename = "client-list")]
     ClientList { clients: Vec<ClientDesc> },
 

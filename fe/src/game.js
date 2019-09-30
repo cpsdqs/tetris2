@@ -4,28 +4,47 @@ import createFBO from 'gl-fbo';
 import quad from './quad';
 import { gameFBO as gameFBOShader } from './shaders';
 import Field from './field';
+import { createActiveField } from '../../tetris-wasm/pkg';
+
+const LOCK_DELAY = 0.5;
+const CLEAR_TIMEOUT = 0.52;
 
 const keymap = {
-    'i': 'rcw',
-    'k': 'rccw',
-    'j': 'ml',
-    'l': 'mr',
-    ' ': 'drop',
-    'ArrowUp': 'rcw',
-    'ArrowDown': 'rccw',
-    'ArrowLeft': 'ml',
-    'ArrowRight': 'mr',
-    'x': 'rcw',
-    'z': 'rccw',
-    'Shift': 'hold',
-    'c': 'hold',
-    'v': 'hdrop',
+    'i': 'rotateActiveCW',
+    'k': 'rotateActiveCCW',
+    'j': 'moveActiveLeft',
+    'l': 'moveActiveRight',
+    ' ': 'hardDropActive',
+    'ArrowUp': 'rotateActiveCW',
+    'ArrowDown': 'rotateActiveCCW',
+    'ArrowLeft': 'moveActiveLeft',
+    'ArrowRight': 'moveActiveRight',
+    'x': 'rotateActiveCW',
+    'z': 'rotateActiveCCW',
+    'Shift': 'swapHeldPiece',
+    'c': 'swapHeldPiece',
+    'v': 'moveActiveDown',
 };
 
 export default class Game {
     constructor () {
         this.fbo = new GameFBO();
+        this.field = createActiveField();
         this.fields = {};
+        this.dirty = true;
+        this.time = 0;
+        this.score = 0;
+        this.dropTimeout = 0;
+    }
+
+    getLevel () {
+        // TODO: needs tweaking
+        return Math.ceil(Math.log(Math.pow(this.score / 1000, 1.4) + 2));
+    }
+
+    getStepCooldown () {
+        const level = this.getLevel();
+        return Math.pow(0.8 - ((level - 1) * 0.007), level - 1);
     }
 
     updateFields (fields) {
@@ -40,13 +59,118 @@ export default class Game {
     }
 
     onKeyDown (key) {
-        if (keymap[key]) {
-            conn.send({ type: 'game-command', command: keymap[key] });
+        const name = keymap[key];
+        if (name) {
+            this.field[name](this.time);
+            if (name === 'hardDropActive') {
+                this.bounce = true;
+            }
+            this.dirty = true;
         }
     }
 
     update (dt) {
+        this.time += dt;
+        this.dropTimeout -= dt;
+
+        this.field.cleanLines(CLEAR_TIMEOUT, this.time);
+
+        if (this.dropTimeout < 0) {
+            this.dropTimeout = this.getStepCooldown();
+            this.field.moveActiveDown(this.time);
+            this.dirty = true;
+        }
+
+        let bounce = this.bounce;
+        this.bounce = false;
+
+        if (this.field.shouldLockActive(LOCK_DELAY, this.time)) {
+            bounce = true;
+            this.field.lockActive();
+        }
+        if (!this.field.getActivePiece()) {
+            this.field.spawnActive(null, this.time);
+        }
+
+        if (bounce) this.dirty = true;
+
+        if (bounce) {
+            const clearedLines = this.field.clearLines(CLEAR_TIMEOUT, this.time);
+            this.scoreClearedLines(clearedLines);
+        }
+
+        if (this.dirty) {
+            // update field contents
+            this.dirty = false;
+
+            const activePiece = this.field.getActivePiece();
+
+            const now = Date.now();
+            const width = this.field.getFieldWidth();
+            const topHeight = this.field.getFieldTopHeight();
+            const height = this.field.getFieldHeight();
+            const tiles = [];
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const tile = this.field.getFieldTile(x, y);
+                    if (typeof tile === 'number') tiles.push(`X${tile}`);
+                    else tiles.push(tile.trim());
+                }
+            }
+
+            const a = {
+                p: activePiece.type(),
+                x: activePiece.posX(),
+                y: activePiece.posY() + this.field.getFieldClearRows(),
+                t: activePiece.getTiles(),
+            };
+
+            this.updateFields({
+                anonymous: {
+                    name: 'anonymous',
+                    field: {
+                        w: width,
+                        h: topHeight,
+                        s: this.score,
+                        l: this.getLevel(),
+                        b: bounce,
+                        t: tiles,
+                        n: this.field.getNextPiece(),
+                        o: this.field.getHeldPiece(),
+                        a,
+                    },
+                },
+            });
+        }
+
         for (const name in this.fields) this.fields[name].update(dt);
+    }
+
+    scoreClearedLines (cleared) {
+        const wasTetris = this.wasTetris;
+        this.wasTetris = false;
+
+        const level = this.getLevel();
+        let score = 0;
+        if (cleared === 1) score = 100 * level;
+        else if (cleared === 2) score = 300 * level;
+        else if (cleared === 3) score = 500 * level;
+        else if (cleared === 4) {
+            if (wasTetris) {
+                score = 1200 * level;
+                this.wasTetris = true;
+            } else {
+                score = 800 * level;
+                this.wasTetris = true;
+            }
+        } else if (cleared > 4) {
+            // this shouldn’t happen in normal tetris but handle it anyway
+            score = (wasTetris ? 400 : 300) * cleared * level;
+            this.wasTetris = true;
+        }
+
+        this.score += score;
     }
 
     render () {
@@ -58,7 +182,7 @@ export default class Game {
             const field = this.fields[name];
             field.pos[0] = x;
             field.pos[1] = 4;
-            field.render(this.fbo);
+            field.render(this.fbo, this.time);
 
             x += field.dims[0] + 8;
         }

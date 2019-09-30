@@ -5,6 +5,6 @@ authors = ["cpsdqs <cpsdqs@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-rand = "0.7"
+rand = { version = "0.7", features = ["wasm-bindgen"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_repr = "0.1"
