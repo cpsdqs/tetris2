@@ -61,9 +61,15 @@ export default class Game {
     onKeyDown (key) {
         const name = keymap[key];
         if (name) {
-            this.field[name](this.time);
             if (name === 'hardDropActive') {
                 this.bounce = true;
+                this.field.sonicDropActive(this.time);
+                this.update(0);
+                this.render();
+                this.isHardDrop = true;
+                this.update(0);
+            } else {
+                this.field[name](this.time);
             }
             this.dirty = true;
         }
@@ -84,7 +90,8 @@ export default class Game {
         let bounce = this.bounce;
         this.bounce = false;
 
-        if (this.field.shouldLockActive(LOCK_DELAY, this.time)) {
+        if (this.field.shouldLockActive(LOCK_DELAY, this.time) || this.isHardDrop) {
+            this.isHardDrop = false;
             bounce = true;
             this.field.lockActive();
         }

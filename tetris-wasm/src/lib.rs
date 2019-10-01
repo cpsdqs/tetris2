@@ -1,6 +1,6 @@
-use wasm_bindgen::throw_str;
+use tetris_core::field::{ActiveField, ActivePiece, Shape, Tile};
 use wasm_bindgen::prelude::*;
-use tetris_core::field::{ActiveField, ActivePiece, Tile, Shape};
+use wasm_bindgen::throw_str;
 
 #[wasm_bindgen(js_name = ActiveField)]
 pub struct JsActiveField(ActiveField);
@@ -29,21 +29,24 @@ impl JsActivePiece {
 
     #[wasm_bindgen(js_name = "getTiles")]
     pub fn tiles(&self) -> Box<[isize]> {
-        self.0.iter_tiles().flat_map(|v| {
-            struct Iter(isize, isize, usize);
-            impl Iterator for Iter {
-                type Item = isize;
-                fn next(&mut self) -> Option<isize> {
-                    self.2 += 1;
-                    match self.2 - 1 {
-                        0 => Some(self.0),
-                        1 => Some(self.1),
-                        _ => None,
+        self.0
+            .iter_tiles()
+            .flat_map(|v| {
+                struct Iter(isize, isize, usize);
+                impl Iterator for Iter {
+                    type Item = isize;
+                    fn next(&mut self) -> Option<isize> {
+                        self.2 += 1;
+                        match self.2 - 1 {
+                            0 => Some(self.0),
+                            1 => Some(self.1),
+                            _ => None,
+                        }
                     }
                 }
-            }
-            Iter(v.x, v.y, 0)
-        }).collect()
+                Iter(v.x, v.y, 0)
+            })
+            .collect()
     }
 }
 
@@ -95,9 +98,9 @@ impl JsActiveField {
         self.0.move_active_down(time);
     }
 
-    #[wasm_bindgen(js_name = "hardDropActive")]
-    pub fn hard_drop_active(&mut self, time: f64) {
-        self.0.hard_drop_active(time);
+    #[wasm_bindgen(js_name = "sonicDropActive")]
+    pub fn sonic_drop_active(&mut self, time: f64) {
+        self.0.sonic_drop_active(time);
     }
 
     #[wasm_bindgen(js_name = "lockActive")]

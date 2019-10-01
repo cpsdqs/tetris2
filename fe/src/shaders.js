@@ -83,6 +83,26 @@ void main() {
 }
 `);
 
+export const particle = s(glsl`
+precision highp float;
+
+uniform vec2 pos;
+uniform vec2 pixel_scale;
+attribute vec2 position;
+
+void main() {
+    gl_Position = vec4(vec2(-1) + pixel_scale * (pos + position) * 2., 0, 1);
+}
+`, glsl`
+precision highp float;
+
+uniform vec4 color;
+uniform float luma;
+
+void main() {
+    gl_FragColor = vec4(color.rgb + vec3(clamp(luma - 1., 0., 1.)), clamp(color.a * luma, 0., 1.));
+}`);
+
 export const bloomThreshold = s(glsl`
 precision highp float;
 

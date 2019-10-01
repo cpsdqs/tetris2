@@ -650,7 +650,8 @@ impl ActiveField {
         let active_piece_width = active_piece_x_bounds.1 - active_piece_x_bounds.0;
 
         active_piece.pos.x = self.field.width as isize / 2 - active_piece_width / 2;
-        active_piece.pos.y = self.field.top_height as isize + self.field.clear_rows as isize - active_piece_baseline_offset;
+        active_piece.pos.y = self.field.top_height as isize + self.field.clear_rows as isize
+            - active_piece_baseline_offset;
         active_piece.try_move(&self.field, 0, -1, time);
         self.active_piece = Some(active_piece);
     }
@@ -690,8 +691,8 @@ impl ActiveField {
         }
     }
 
-    /// Moves the active tile all the way down and locks it in place.
-    pub fn hard_drop_active(&mut self, time: Timestamp) {
+    /// Moves the active tile all the way down.
+    pub fn sonic_drop_active(&mut self, time: Timestamp) {
         // use field height as an upper limit in case of invalid state
         for _ in 0..self.field.height {
             self.move_active_down(time);
@@ -702,11 +703,6 @@ impl ActiveField {
             {
                 break;
             }
-        }
-
-        // instantly lock in place
-        if self.should_lock_active(0., time) {
-            self.lock_active();
         }
     }
 
