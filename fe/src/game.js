@@ -5,6 +5,7 @@ import quad from './quad';
 import { gameFBO as gameFBOShader, bloomThreshold, bloomComposite, gaussianPass } from './shaders';
 import Field from './field';
 import { createActiveField } from '../../tetris-wasm/pkg';
+import * as gamepad from './gamepad';
 
 const LOCK_DELAY = 0.5;
 const CLEAR_TIMEOUT = 0.52;
@@ -76,6 +77,8 @@ export default class Game {
     }
 
     update (dt) {
+        gamepad.pollEvents(key => this.onKeyDown(key), dt);
+
         this.time += dt;
         this.dropTimeout -= dt;
 

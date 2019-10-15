@@ -451,7 +451,10 @@ impl PlayerField {
             GameCommand::MoveLeft => self.field.move_active_left(self.time),
             GameCommand::MoveRight => self.field.move_active_right(self.time),
             GameCommand::SoftDrop => self.field.move_active_down(self.time),
-            GameCommand::HardDrop => self.field.hard_drop_active(self.time),
+            GameCommand::HardDrop => {
+                self.field.sonic_drop_active(self.time);
+                self.field.lock_active();
+            }
             GameCommand::RotateCW => self.field.rotate_active_cw(self.time),
             GameCommand::RotateCCW => self.field.rotate_active_ccw(self.time),
             GameCommand::SwapHeld => self.field.swap_held_piece(self.time),
