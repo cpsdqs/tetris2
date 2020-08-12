@@ -1,6 +1,10 @@
+use tetris_core::geom::Point2;
 use tetris_core::field::{ActiveField, ActivePiece, Shape, Tile};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::throw_str;
+
+#[wasm_bindgen(js_name = Point2)]
+pub struct JsPoint2(Point2<isize>);
 
 #[wasm_bindgen(js_name = ActiveField)]
 pub struct JsActiveField(ActiveField);
@@ -8,23 +12,31 @@ pub struct JsActiveField(ActiveField);
 #[wasm_bindgen(js_name = ActivePiece)]
 pub struct JsActivePiece(ActivePiece);
 
+#[wasm_bindgen(js_class = Point2)]
+impl JsPoint2 {
+    #[wasm_bindgen(js_name = "x", getter)]
+    pub fn x(&self) -> f64 {
+        self.0.x as f64
+    }
+
+    #[wasm_bindgen(js_name = "y", getter)]
+    pub fn y(&self) -> f64 {
+        self.0.y as f64
+    }
+}
+
 #[wasm_bindgen(js_class = ActivePiece)]
 impl JsActivePiece {
-    #[wasm_bindgen(js_name = "type")]
+    #[wasm_bindgen(js_name = "type", getter)]
     pub fn piece_type(&self) -> String {
         let mut buf = String::new();
         self.0.piece_type().stringify(&mut buf);
         buf
     }
 
-    #[wasm_bindgen(js_name = "posX")]
-    pub fn pos_x(&self) -> isize {
-        self.0.pos().x
-    }
-
-    #[wasm_bindgen(js_name = "posY")]
-    pub fn pos_y(&self) -> isize {
-        self.0.pos().y
+    #[wasm_bindgen(js_name = "pos", getter)]
+    pub fn pos(&self) -> JsPoint2 {
+        JsPoint2(self.0.pos())
     }
 
     #[wasm_bindgen(js_name = "getTiles")]
@@ -96,6 +108,14 @@ impl JsActiveField {
     #[wasm_bindgen(js_name = "moveActiveDown")]
     pub fn move_active_down(&mut self, time: f64) {
         self.0.move_active_down(time);
+    }
+
+    #[wasm_bindgen(js_name = "ghostPos")]
+    pub fn ghost_pos(&mut self) -> JsValue {
+        match self.0.ghost_pos() {
+            Some(pos) => JsValue::from(JsPoint2(pos)),
+            None => JsValue::null(),
+        }
     }
 
     #[wasm_bindgen(js_name = "sonicDropActive")]

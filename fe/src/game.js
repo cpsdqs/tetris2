@@ -130,9 +130,10 @@ export default class Game {
             }
 
             const a = {
-                p: activePiece.type(),
-                x: activePiece.posX(),
-                y: activePiece.posY() + this.field.getFieldClearRows(),
+                p: activePiece.type,
+                x: activePiece.pos.x,
+                y: activePiece.pos.y + this.field.getFieldClearRows(),
+                g: this.field.ghostPos().y,
                 t: activePiece.getTiles(),
             };
 

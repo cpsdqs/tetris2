@@ -12,9 +12,9 @@ const mappings = {
             7: 'Shift',
             // dpad
             12: ' ',
-            13: 'ArrowDown',
+            13: 'v',
             14: 'ArrowLeft',
-            15: 'v',
+            15: 'ArrowRight',
         },
     },
     ds4: {

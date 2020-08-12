@@ -691,6 +691,19 @@ impl ActiveField {
         }
     }
 
+    /// Returns the position of the ghost piece.
+    pub fn ghost_pos(&self) -> Option<Point2<isize>> {
+        if let Some(active_piece) = self.active_piece {
+            let mut piece = active_piece.clone();
+            while !piece.is_on_ground(&self.field) {
+                piece.try_move(&self.field, 0, -1, 0.);
+            }
+            Some(piece.pos())
+        } else {
+            None
+        }
+    }
+
     /// Moves the active tile all the way down.
     pub fn sonic_drop_active(&mut self, time: Timestamp) {
         // use field height as an upper limit in case of invalid state

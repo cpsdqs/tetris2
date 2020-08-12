@@ -16,6 +16,7 @@ const TILE_COLORS = {
     J: [0.39, 0.48, 0.77, 1],
     L: [0.92, 0.6, 0.31, 1],
 };
+const GHOST_COLOR = [1, 1, 1, 0.5];
 const TILE_SHAPES = {
     I: [[0, 0], [1, 0], [2, 0], [3, 0]],
     O: [[0, 0], [1, 0], [0, 1], [1, 1]],
@@ -123,6 +124,19 @@ export default class Field {
             posY += tileHeight;
         }
 
+        // draw active ghost tile
+        const ghostY = this.field
+        this.drawTiles(
+            px + this.field.a.x * TILE_SIZE,
+            py,
+            this.field.a.g,
+            yOffsets,
+            this.field.a.p,
+            this.field.a.t,
+            0,
+            GHOST_COLOR,
+        );
+
         // draw active tile
         this.drawTiles(
             px + this.field.a.x * TILE_SIZE,
@@ -154,8 +168,8 @@ export default class Field {
         this.particles.render(fbo, this.dy.value);
     }
 
-    drawTiles (x, py, y, yOff, p, t, downDeltaY) {
-        tileShader.uniforms.color = TILE_COLORS[p];
+    drawTiles (x, py, y, yOff, p, t, downDeltaY, colorOverride) {
+        tileShader.uniforms.color = colorOverride || TILE_COLORS[p];
         tileShader.uniforms.expand = true;
         for (let i = 0; i < t.length; i += 2) {
             const [dx, dy] = [t[i], t[i + 1]];
